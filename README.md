@@ -2,6 +2,10 @@
 
 Train before the emergency.
 
+
+## Video
+- [Gameplay test v2 (mới nhất)](Docs/Videos/FireEscape_gameplay_test_v2.mp4)
+- [Gameplay test v1](Docs/Videos/FireEscape_gameplay_test.mp4)
 ## Chạy thử trên PC (không cần kính)
 1. Mở project bằng Unity 6000.0.78.
 2. Chọn menu **FireEscape → 1. Tạo scene PC (bàn phím + chuột)**. Scene được lưu ở `Assets/FireEscape/Scenes/FireEscape_PC.unity`.
