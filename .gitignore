@@ -26,3 +26,7 @@ sysinfo.txt
 # Blender backups
 *.blend1
 *.blend2
+
+# Local Meta XR dev agent config (contains access token)
+Assets/Resources/DevAgentSettings.asset
+Assets/Resources/DevAgentSettings.asset.meta
