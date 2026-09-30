@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "unity-mcp": {
+      "command": "C:\\Users\\dangp\\.unity\\relay\\relay_win.exe",
+      "args": ["--mcp", "--project-path", "C:/Users/dangp/FireEscapeMR"]
+    },
+    "blender": {
+      "command": "C:\\Users\\dangp\\.local\\bin\\uvx.exe",
+      "args": ["mcp-for-blender"]
+    }
+  }
+}
