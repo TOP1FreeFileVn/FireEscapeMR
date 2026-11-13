@@ -481,10 +481,12 @@ namespace FireEscape
         {
             if (xr && menuCanvas.gameObject.activeSelf)
             {
-                // menu nằm ngoài tầm nhìn (> 55°) hoặc quá xa → đưa về trước mặt người chơi
+                // menu nằm ngoài tầm nhìn (> 55°), quá xa, hoặc người chơi đã đi vòng ra sau lưng menu (MR: đi lại thật)
+                // → đưa về trước mặt người chơi
                 var head = game.Player.Head;
                 var toMenu = menuCanvas.transform.position - head.position;
-                if (Vector3.Angle(head.forward, toMenu) > 55f || toMenu.magnitude > 3f || toMenu.magnitude < 0.5f)
+                bool seenFromBehind = Vector3.Dot(menuCanvas.transform.forward, toMenu.normalized) < 0.3f;
+                if (Vector3.Angle(head.forward, toMenu) > 55f || toMenu.magnitude > 3f || toMenu.magnitude < 0.5f || seenFromBehind)
                     PlaceInFront(menuCanvas, 1.35f, 0.1f);
             }
             if (xr && hudCanvas.gameObject.activeSelf)
@@ -928,8 +930,8 @@ namespace FireEscape
                 b.onClick.Invoke();
                 return;
             }
-            var stick = OVRInput.Get(OVRInput.Axis2D.PrimaryThumbstick, OVRInput.Controller.RTouch);
-            if (Mathf.Abs(stick.y) > 0.2f)
+            float scroll = player is XRPlayer xs ? xs.ScrollDelta : 0f;
+            if (scroll != 0f)
             {
                 ScrollRect target = found != null ? found.GetComponentInParent<ScrollRect>() : null;
                 if (target == null)
@@ -939,7 +941,7 @@ namespace FireEscape
                         if (rt.rect.Contains((Vector2)rt.InverseTransformPoint(hit))) target = s;
                     }
                 if (target != null)
-                    target.verticalNormalizedPosition = Mathf.Clamp01(target.verticalNormalizedPosition + stick.y * Time.deltaTime * 0.8f);
+                    target.verticalNormalizedPosition = Mathf.Clamp01(target.verticalNormalizedPosition + scroll);
             }
         }
     }

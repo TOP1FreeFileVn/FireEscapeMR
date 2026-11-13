@@ -31,12 +31,14 @@ Phím: WASD di chuyển · chuột nhìn · Shift chạy · C/Ctrl cúi · E ho�
 | `BlenderSource/` (ngoài Assets) | `fire_equipment.py` và `.blend` gốc |
 
 ### NPC hướng dẫn (lính cứu hỏa)
-Nguồn: model Tripo AI trong `Downloads\firefighter+3d+model` (turnaround 3 bản, 1,9 triệu tam giác, không có xương).
-1. `blender -b -P BlenderSource/firefighter_stageA.py -- <fbx gốc> BlenderSource/firefighter_A.blend <preview_dir>`: tách bản nhìn thẳng, đưa về cao 1,8 m, giảm còn khoảng 40k tam giác.
-2. `blender -b BlenderSource/firefighter_A.blend -P BlenderSource/firefighter_remesh.py -- BlenderSource/firefighter_A_remesh.blend`: remesh — voxel 7 mm hàn các mảnh rời của lưới AI thành một khối kín, rồi giảm đều còn 44k tam giác; giữ bản gốc (`FirefighterSource`, ẩn) để bước 4 bake chi tiết sang.
-3. `blender -b BlenderSource/firefighter_A_remesh.blend -P BlenderSource/firefighter_stageB.py -- Assets/FireEscape/Resources/FireEscapeModels/Firefighter <preview_dir> <thư mục .fbm>`: tách mặt nạ SCBA (xương `Mask`), vá mặt, dựng 23 xương, gán trọng số, tạo 9 animation và xuất FBX (UV tạm).
-4. `blender -b BlenderSource/firefighter_rigged.blend -P BlenderSource/firefighter_stageC_texture.py -- Assets/FireEscape/Resources/FireEscapeModels/Firefighter <preview_dir>`: trải UV mới theo vùng xương, bake màu/normal/roughness/metallic từ bản gốc (texture Tripo 4096) sang lưới mới, làm sạch màu vải và vạch phản quang, xuất lại FBX + texture 2048.
-5. Trong Unity: **FireEscape → 4. Tạo NPC hướng dẫn** để tạo material URP, Animator Controller và prefab.
+Model dựng hoàn toàn bằng code trong `BlenderSource/firefighter_build.py`, theo ảnh tham chiếu turnaround (không dùng lưới AI). Gồm mũ đỏ vạch vàng có huy hiệu, mặt nạ SCBA và van thở đỏ, ống thở, áo và quần chống cháy navy với vạch phản quang vàng–bạc, đai đeo, đồng hồ áp suất, bộ đàm, bình khí và khung đeo, găng tay, đệm gối, túi hộp, ủng. Khoảng 34k tam giác, 23 xương, texture 2048.
+
+1. Chạy script theo một trong hai cách:
+   - Trong Blender đang mở (Blender MCP, xem được từng bước): `exec(open(r"C:/Users/dangp/FireEscapeMR/BlenderSource/firefighter_build.py", encoding="utf-8").read(), {"STAGE": "all"})`. `STAGE` là `model` (dựng hình), `rig` (xương, trọng số, animation), `bake` (UV, bake, xuất) hoặc `all`.
+   - Chạy nền: `blender -b -P BlenderSource/firefighter_build.py -- <preview_dir>`.
+
+   Script xuất `Firefighter.fbx`, `Firefighter_BaseColor.png`, `Firefighter_Normal.png` và `Firefighter_MetallicSmoothness.png` vào `Assets/FireEscape/Resources/FireEscapeModels/Firefighter`, đồng thời lưu `BlenderSource/firefighter.blend`.
+2. Trong Unity, chọn **FireEscape → 4. Tạo NPC hướng dẫn** để tạo material URP, Animator Controller và prefab.
 
 Animation: Idle, Talk, Point, Beckon, Walk, CrouchWalk, MaskOn, MaskOff, MaskOffIdle. NPC xuất hiện ở menu và trong nhiệm vụ Beginner.
 

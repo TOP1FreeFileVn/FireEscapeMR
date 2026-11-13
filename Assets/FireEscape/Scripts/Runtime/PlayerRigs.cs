@@ -32,10 +32,14 @@ namespace FireEscape
         public abstract bool ConfirmDown { get; }
         public abstract void Teleport(Vector3 foot, float yaw);
         public abstract void SetMenuMode(bool menu);
+        /// <summary>Đang dùng hand tracking (không cầm tay cầm).</summary>
+        public virtual bool HandsActive => false;
 
-        public string Key(string action) => IsXR
-            ? action switch { "E" => "Trigger", "F" => "A", "Q" => "B", "C" => "Cúi người", _ => action }
-            : action switch { "C" => "C/Ctrl", _ => action };
+        public string Key(string action) => !IsXR
+            ? action switch { "C" => "C/Ctrl", _ => action }
+            : HandsActive
+                ? action switch { "E" => "Chụm trỏ tay phải", "F" => "Chụm giữa tay phải", "Q" => "Chụm giữa tay trái", "C" => "Cúi người", _ => action }
+                : action switch { "E" => "Trigger", "F" => "A", "Q" => "B", "C" => "Cúi người", _ => action };
     }
 
     public class DesktopPlayer : PlayerRig
@@ -161,7 +165,10 @@ namespace FireEscape
         }
     }
 
-    /// <summary>Quest: dùng OVRCameraRig. MR = đi lại thật trong phòng; VR = có thêm di chuyển bằng joystick.</summary>
+    /// <summary>Quest: dùng OVRCameraRig. MR = đi lại thật trong phòng; VR = có thêm di chuyển bằng joystick.
+    /// Hỗ trợ cả tay cầm Touch lẫn hand tracking:
+    /// chụm trỏ phải = Trigger · chụm giữa phải = A · chụm giữa trái = B ·
+    /// giữ chụm trỏ trái = đi theo hướng tay trái (VR) hoặc kéo lên/xuống để cuộn menu · cử chỉ menu tay trái = Menu.</summary>
     public class XRPlayer : PlayerRig
     {
         OVRCameraRig rig;
@@ -169,6 +176,12 @@ namespace FireEscape
         bool locomotion;
         LineRenderer laser;
         bool snapped;
+        OVRHand leftHand, rightHand;
+
+        // trạng thái chụm, cập nhật một lần mỗi frame (có trễ để không nhấp nháy)
+        int pollFrame = -1;
+        bool rIdx, rIdxPrev, rMid, rMidPrev, lMid, lMidPrev, lIdx;
+        float lastLeftY, scrollDelta;
 
         public static XRPlayer Create(OVRCameraRig rig, bool locomotion, float floorY)
         {
@@ -176,6 +189,13 @@ namespace FireEscape
             p.rig = rig;
             p.locomotion = locomotion;
             p.floorY = floorY;
+            foreach (var h in rig.GetComponentsInChildren<OVRHand>(true))
+            {
+                if (h.GetHand() == OVRPlugin.Hand.HandLeft) p.leftHand = h;
+                else if (h.GetHand() == OVRPlugin.Hand.HandRight) p.rightHand = h;
+            }
+            if (p.leftHand == null || p.rightHand == null)
+                Debug.LogWarning("FireEscape: scene chưa có OVRHand — chạy menu FireEscape → 3 để thêm hand tracking.");
             var lgo = new GameObject("Laser");
             lgo.transform.SetParent(rig.transform, false);
             p.laser = lgo.AddComponent<LineRenderer>();
@@ -190,18 +210,61 @@ namespace FireEscape
         public override Camera Cam => rig.centerEyeAnchor.GetComponent<Camera>();
         public override Transform Head => rig.centerEyeAnchor;
         public override Transform HoldAnchor => rig.rightHandAnchor;
-        public override Ray AimRay => new Ray(rig.rightHandAnchor.position, rig.rightHandAnchor.forward);
+        public override Ray AimRay
+        {
+            get
+            {
+                if (HandsActive && rightHand.IsPointerPoseValid)
+                {
+                    var pp = rightHand.PointerPose;
+                    return new Ray(pp.position, pp.forward);
+                }
+                return new Ray(rig.rightHandAnchor.position, rig.rightHandAnchor.forward);
+            }
+        }
         public override Vector3 FootPos { get { var h = Head.position; return new Vector3(h.x, 0f, h.z); } }
         public override float HeadHeight => Head.position.y - floorY;
 
-        public override bool InteractDown => OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch);
-        public override bool InteractHeld => OVRInput.Get(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch);
-        public override bool SecondaryDown => OVRInput.GetDown(OVRInput.Button.One, OVRInput.Controller.RTouch);
-        public override bool DropDown => OVRInput.GetDown(OVRInput.Button.Two, OVRInput.Controller.RTouch);
-        public override bool MenuDown => OVRInput.GetDown(OVRInput.Button.Start);
-        public override bool ConfirmDown => OVRInput.GetDown(OVRInput.Button.One, OVRInput.Controller.RTouch);
+        public override bool HandsActive => Tracked(rightHand) || Tracked(leftHand);
+
+        public override bool InteractDown { get { Poll(); return OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch) || (rIdx && !rIdxPrev); } }
+        public override bool InteractHeld { get { Poll(); return OVRInput.Get(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch) || rIdx; } }
+        public override bool SecondaryDown { get { Poll(); return OVRInput.GetDown(OVRInput.Button.One, OVRInput.Controller.RTouch) || (rMid && !rMidPrev); } }
+        public override bool DropDown { get { Poll(); return OVRInput.GetDown(OVRInput.Button.Two, OVRInput.Controller.RTouch) || (lMid && !lMidPrev); } }
+        public override bool MenuDown => OVRInput.GetDown(OVRInput.Button.Start); // tay trái: cử chỉ menu hệ thống
+        public override bool ConfirmDown => SecondaryDown;
+
+        /// <summary>Lượng cuộn menu trong frame này (joystick phải, hoặc chụm trỏ trái rồi kéo tay lên/xuống).</summary>
+        public float ScrollDelta { get { Poll(); return scrollDelta; } }
 
         public float LaserLength { get; set; } = 3f;
+
+        static bool Tracked(OVRHand h) => h != null && h.IsTracked && !h.IsSystemGestureInProgress;
+
+        static bool Pinch(OVRHand h, OVRHand.HandFinger f, bool was)
+        {
+            if (!Tracked(h)) return false;
+            float s = h.GetFingerPinchStrength(f);
+            return was ? s > 0.5f : s > 0.85f;
+        }
+
+        void Poll()
+        {
+            if (pollFrame == Time.frameCount) return;
+            pollFrame = Time.frameCount;
+            rIdxPrev = rIdx; rMidPrev = rMid; lMidPrev = lMid;
+            rIdx = Pinch(rightHand, OVRHand.HandFinger.Index, rIdx);
+            rMid = Pinch(rightHand, OVRHand.HandFinger.Middle, rMid);
+            lMid = Pinch(leftHand, OVRHand.HandFinger.Middle, lMid);
+            bool lIdxWas = lIdx;
+            lIdx = Pinch(leftHand, OVRHand.HandFinger.Index, lIdx);
+
+            float y = leftHand != null ? leftHand.transform.position.y : 0f;
+            float stickY = OVRInput.Get(OVRInput.Axis2D.PrimaryThumbstick, OVRInput.Controller.RTouch).y;
+            if (lIdx && lIdxWas) scrollDelta = (y - lastLeftY) * 2.5f;
+            else scrollDelta = Mathf.Abs(stickY) > 0.2f ? stickY * Time.deltaTime * 0.8f : 0f;
+            lastLeftY = y;
+        }
 
         public override void Teleport(Vector3 foot, float yaw)
         {
@@ -216,6 +279,7 @@ namespace FireEscape
 
         void Update()
         {
+            Poll();
             var ray = AimRay;
             laser.SetPosition(0, ray.origin);
             laser.SetPosition(1, ray.origin + ray.direction * LaserLength);
@@ -223,11 +287,22 @@ namespace FireEscape
 
             if (!locomotion || !controlsEnabled) return;
             var stick = OVRInput.Get(OVRInput.Axis2D.PrimaryThumbstick, OVRInput.Controller.LTouch);
+            Vector3 dir = Vector3.zero;
             if (stick.sqrMagnitude > 0.04f)
             {
                 var fwd = Head.forward; fwd.y = 0; fwd.Normalize();
                 var right = Head.right; right.y = 0; right.Normalize();
-                var dir = (fwd * stick.y + right * stick.x);
+                dir = fwd * stick.y + right * stick.x;
+            }
+            else if (lIdx)
+            {
+                // hand tracking: giữ chụm trỏ tay trái để đi theo hướng tay trái chỉ
+                var aim = leftHand.IsPointerPoseValid ? leftHand.PointerPose.forward : Head.forward;
+                aim.y = 0;
+                if (aim.sqrMagnitude > 0.01f) dir = aim.normalized;
+            }
+            if (dir != Vector3.zero)
+            {
                 float speed = Crouching ? 1.2f : 2.2f;
                 var from = Head.position;
                 if (!Physics.SphereCast(new Vector3(from.x, floorY + 0.9f, from.z), 0.25f, dir.normalized, out _, 0.4f, ~0, QueryTriggerInteraction.Ignore))

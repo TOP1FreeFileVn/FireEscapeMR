@@ -59,5 +59,3 @@ AvatarMask:
     m_Weight: 0
   - m_Path: FirefighterRig/Root/Hips/Spine/Chest/RightShoulder/RightUpperArm/RightLowerArm/RightHand
     m_Weight: 0
-  - m_Path: SCBA_Mask
-    m_Weight: 0

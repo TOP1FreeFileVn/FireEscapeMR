@@ -77,6 +77,7 @@ namespace FireEscape.EditorTools
                 }
 
                 AddControllers(rigGo);
+                AddHands(rigGo);
 
                 var mrukPrefab = FindPrefab("MRUK");
                 if (mrukPrefab != null) PrefabUtility.InstantiatePrefab(mrukPrefab);
@@ -85,6 +86,7 @@ namespace FireEscape.EditorTools
                 var cfg = OVRProjectConfig.CachedProjectConfig;
                 cfg.sceneSupport = OVRProjectConfig.FeatureSupport.Required;
                 cfg.insightPassthroughSupport = OVRProjectConfig.FeatureSupport.Required;
+                cfg.handTrackingSupport = OVRProjectConfig.HandTrackingSupport.ControllersAndHands;
                 OVRProjectConfig.CommitProjectConfig(cfg);
             }
             else
@@ -103,12 +105,16 @@ namespace FireEscape.EditorTools
             Debug.Log($"FireEscape: đã tạo {path}. Nhấn Play để chạy{(quest ? " (cần Quest qua Link hoặc build Android)" : "")}.");
         }
 
-        [MenuItem("FireEscape/3. Thêm tay cầm Touch vào scene đang mở", priority = 3)]
+        [MenuItem("FireEscape/3. Thêm tay cầm Touch + hand tracking vào scene đang mở", priority = 3)]
         public static void AddControllersToOpenScene()
         {
             var rig = Object.FindFirstObjectByType<OVRCameraRig>();
             if (rig == null) { Debug.LogError("FireEscape: scene không có OVRCameraRig — tạo scene Quest trước (menu 2)."); return; }
             AddControllers(rig.gameObject);
+            AddHands(rig.gameObject);
+            var cfg = OVRProjectConfig.CachedProjectConfig;
+            cfg.handTrackingSupport = OVRProjectConfig.HandTrackingSupport.ControllersAndHands;
+            OVRProjectConfig.CommitProjectConfig(cfg);
             EditorSceneManager.MarkSceneDirty(rig.gameObject.scene);
             EditorSceneManager.SaveScene(rig.gameObject.scene);
         }
@@ -122,12 +128,38 @@ namespace FireEscape.EditorTools
             {
                 var anchor = rigGo.GetComponentsInChildren<Transform>(true).FirstOrDefault(t => t.name == anchorName);
                 if (anchor == null) { Debug.LogWarning("FireEscape: thiếu " + anchorName); continue; }
-                if (anchor.GetComponentInChildren<OVRControllerHelper>(true) != null) continue;
+                var helper = anchor.GetComponentInChildren<OVRControllerHelper>(true);
+                if (helper == null)
+                {
+                    var go = (GameObject)PrefabUtility.InstantiatePrefab(prefab, anchor);
+                    go.name = controller == OVRInput.Controller.LTouch ? "LeftTouchController" : "RightTouchController";
+                    helper = go.GetComponent<OVRControllerHelper>();
+                    helper.m_controller = controller;
+                }
+                // ẩn model tay cầm khi đang dùng hand tracking (Simulator không có tay → vẫn hiện)
+                helper.m_showState = OVRInput.InputDeviceShowState.ControllerInHandOrNoHand;
+                EditorUtility.SetDirty(helper);
+            }
+        }
+
+        /// <summary>Gắn OVRHandPrefab (mesh bàn tay + dữ liệu chụm ngón) vào LeftHandAnchor/RightHandAnchor.</summary>
+        static void AddHands(GameObject rigGo)
+        {
+            var prefab = FindPrefab("OVRHandPrefab");
+            if (prefab == null) { Debug.LogWarning("FireEscape: không tìm thấy OVRHandPrefab."); return; }
+            foreach (var (anchorName, handType) in new[] { ("LeftHandAnchor", OVRHand.Hand.HandLeft), ("RightHandAnchor", OVRHand.Hand.HandRight) })
+            {
+                var anchor = rigGo.GetComponentsInChildren<Transform>(true).FirstOrDefault(t => t.name == anchorName);
+                if (anchor == null) { Debug.LogWarning("FireEscape: thiếu " + anchorName); continue; }
+                if (anchor.GetComponentsInChildren<OVRHand>(true).Any(h => h.GetHand() == (OVRPlugin.Hand)handType)) continue;
                 var go = (GameObject)PrefabUtility.InstantiatePrefab(prefab, anchor);
-                go.name = controller == OVRInput.Controller.LTouch ? "LeftTouchController" : "RightTouchController";
-                var helper = go.GetComponent<OVRControllerHelper>();
-                helper.m_controller = controller;
-                helper.m_showState = OVRInput.InputDeviceShowState.Always;
+                go.name = handType == OVRHand.Hand.HandLeft ? "LeftHand" : "RightHand";
+                var hand = go.GetComponent<OVRHand>();
+                var so = new SerializedObject(hand);
+                so.FindProperty("HandType").intValue = (int)handType;   // trường internal của OVRHand
+                so.ApplyModifiedPropertiesWithoutUndo();
+                hand.OnValidate();   // đồng bộ loại skeleton/mesh theo tay
+                EditorUtility.SetDirty(go);
             }
         }
 

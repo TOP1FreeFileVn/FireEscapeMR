@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace FireEscape.EditorTools
 {
-    /// <summary>Cấu hình import cho Firefighter.fbx (xuất từ BlenderSource/firefighter_stageB.py).</summary>
+    /// <summary>Cấu hình import cho Firefighter.fbx (xuất từ BlenderSource/firefighter_build.py).</summary>
     class FirefighterImporter : AssetPostprocessor
     {
         const string Folder = "Assets/FireEscape/Resources/FireEscapeModels/Firefighter/";
@@ -59,7 +59,7 @@ namespace FireEscape.EditorTools
             string fbx = Dir + "/Firefighter.fbx";
             AssetDatabase.ImportAsset(fbx, ImportAssetOptions.ForceUpdate);
             var model = AssetDatabase.LoadAssetAtPath<GameObject>(fbx);
-            if (model == null) { Debug.LogError("FireEscape: chưa có " + fbx + " — chạy BlenderSource/firefighter_stageB.py trước."); return; }
+            if (model == null) { Debug.LogError("FireEscape: chưa có " + fbx + " — chạy BlenderSource/firefighter_build.py trước."); return; }
 
             // ---- vật liệu PBR (URP Lit) ----
             var lit = Shader.Find("Universal Render Pipeline/Lit");
@@ -70,7 +70,7 @@ namespace FireEscape.EditorTools
             mat.SetTexture("_MetallicGlossMap", AssetDatabase.LoadAssetAtPath<Texture2D>(Dir + "/Firefighter_MetallicSmoothness.png"));
             mat.EnableKeyword("_METALLICSPECGLOSSMAP");
             mat.SetFloat("_Smoothness", 0.8f);
-            // hai mặt: khe cắt ở nách (xem firefighter_stageB.py) lộ mặt trong tối của áo thay vì lỗ trống
+            // hai mặt: nhìn vào trong ống tay/vạt áo thấy mặt trong tối thay vì lỗ trống
             mat.SetFloat("_Cull", 0f);
             mat.doubleSidedGI = true;
             SaveAsset(mat, Dir + "/Firefighter_Mat.mat");

@@ -80,14 +80,6 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: -809006752762651604, guid: 4ac5d3e2a58ed8f43aba00e82d1886d1, type: 3}
-      propertyPath: m_UpdateWhenOffscreen
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: -809006752762651604, guid: 4ac5d3e2a58ed8f43aba00e82d1886d1, type: 3}
-      propertyPath: 'm_Materials.Array.data[0]'
-      value: 
-      objectReference: {fileID: 2100000, guid: f7fc1e20776c4ad4d8ac3f687c08c43f, type: 2}
     - target: {fileID: -602065705326211335, guid: 4ac5d3e2a58ed8f43aba00e82d1886d1, type: 3}
       propertyPath: m_UpdateWhenOffscreen
       value: 1
